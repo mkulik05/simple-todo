@@ -7,14 +7,22 @@
     "dev": "nodemon app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["todo", "task-management", "express", "nodejs"],
+  "keywords": [
+    "todo",
+    "task-management",
+    "express",
+    "nodejs"
+  ],
   "author": "",
   "license": "ISC",
   "description": "A beautiful and modern Todo application with file uploads and comprehensive logging",
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "body-parser": "^1.20.2",
+    "cookie-parser": "^1.4.6",
     "ejs": "^3.1.9",
     "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.0-rc.3"
   },
   "devDependencies": {
