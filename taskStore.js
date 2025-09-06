@@ -1,11 +1,13 @@
-let tasks = [];
+let tasksByUser = {};
 
 module.exports = {
-  getAll: (status) => {
-    if (!status || status === "all") return tasks;
-    return tasks.filter(t => t.status === status);
+  getAll: (userId, status) => {
+    const userTasks = tasksByUser[userId] || [];
+    if (!status || status === "all") return userTasks;
+    return userTasks.filter(t => t.status === status);
   },
-  create: ({ title, dueDate, files }) => {
+
+  create: (userId, { title, dueDate, files }) => {
     const newTask = {
       id: Date.now(),
       title: title.trim(),
@@ -14,20 +16,30 @@ module.exports = {
       files,
       createdAt: new Date().toISOString()
     };
-    tasks.push(newTask);
+
+    if (!tasksByUser[userId]) {
+      tasksByUser[userId] = [];
+    }
+    tasksByUser[userId].push(newTask);
     return newTask;
   },
-  toggleStatus: (id) => {
-    const task = tasks.find(t => t.id === id);
+
+  toggleStatus: (userId, id) => {
+    const userTasks = tasksByUser[userId] || [];
+    const task = userTasks.find(t => t.id === id);
     if (!task) return null;
+
     task.status = task.status === "pending" ? "done" : "pending";
     task.updatedAt = new Date().toISOString();
     return task;
   },
-  remove: (id) => {
-    const idx = tasks.findIndex(t => t.id === id);
+
+  remove: (userId, id) => {
+    const userTasks = tasksByUser[userId] || [];
+    const idx = userTasks.findIndex(t => t.id === id);
     if (idx === -1) return false;
-    tasks.splice(idx, 1);
+
+    userTasks.splice(idx, 1);
     return true;
   }
 };
