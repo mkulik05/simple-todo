@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Todo App - Управление задачами</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>Todo App</h1>
+    </header>
+    <main class="main-content">
+      <section class="add-task-section">
+        <div class="card">
+          <h2>Добавить новую задачу</h2>
+          <form id="taskForm" class="add-task-form" enctype="multipart/form-data">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="title">Название задачи</label>
+                <input type="text" id="title" name="title" placeholder="Введите название задачи..." required class="form-input"/>
+              </div>
+              <div class="form-group">
+                <label for="dueDate">Срок выполнения</label>
+                <input type="date" id="dueDate" name="dueDate" required class="form-input"/>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="file">Прикрепить файл (необязательно)</label>
+              <input type="file" id="file" name="file" multiple class="form-input file-input" accept="*/*"/>
+              <small class="form-help">Можно загружать любые файлы любого размера</small>
+            </div>
+            <button type="submit" class="btn btn-primary">Добавить задачу</button>
+          </form>
+        </div>
+      </section>
+      <section class="filter-section">
+        <div class="card">
+          <h3>Фильтр задач</h3>
+          <select id="filterSelect" class="filter-select">
+            <option value="all">Все задачи</option>
+            <option value="pending">В ожидании</option>
+            <option value="done">Выполнено</option>
+          </select>
+        </div>
+      </section>
+      <section class="tasks-section">
+        <div class="card">
+          <h2>Список задач</h2>
+          <div id="tasks" class="tasks-grid"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
