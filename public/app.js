@@ -17,54 +17,22 @@ const mainContent = document.getElementById("mainContent");
 
 let isLoginMode = true;
 let currentUser = null;
-let socket = null;
 let authToken = null;
 
-const initializeSocket = (token) => {
-  if (socket) {
-    socket.disconnect();
+const graphqlRequest = async (query, variables = {}) => {
+  const res = await fetch('/graphql', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+    },
+    body: JSON.stringify({ query, variables })
+  });
+  const json = await res.json();
+  if (json.errors && json.errors.length) {
+    throw new Error(json.errors[0].message || 'GraphQL error');
   }
-  
-  socket = io({
-    auth: {
-      token: token
-    }
-  });
-  
-  socket.on('connect', () => {
-    console.log('Connected to server');
-    if (token) {
-      showMainContent();
-    }
-  });
-  
-  socket.on('connect_error', (error) => {
-    console.error('Connection error:', error);
-    if (error.message.includes('Authentication error')) {
-      showAuthMessage('Ошибка аутентификации. Пожалуйста, войдите заново.');
-      logout();
-    }
-  });
-  
-  socket.on('disconnect', () => {
-    console.log('Disconnected from server');
-  });
-  
-  socket.on('tasks:loaded', (tasks) => {
-    displayTasks(tasks);
-  });
-  
-  socket.on('task:created', (task) => {
-    loadTasks();
-  });
-  
-  socket.on('task:updated', (task) => {
-    loadTasks();
-  });
-  
-  socket.on('task:deleted', (data) => {
-    loadTasks();
-  });
+  return json.data;
 };
 
 const showAuthModal = () => {
@@ -123,33 +91,28 @@ const handleAuth = async (e) => {
   }
   
   try {
-    const tempSocket = io();
-    
-    const eventName = isLoginMode ? 'auth:login' : 'auth:register';
-    
-    tempSocket.emit(eventName, { username, password }, (response) => {
-      if (response.error) {
-        showAuthMessage(response.error);
-        tempSocket.disconnect();
-        return;
-      }
-      
-      if (isLoginMode) {
-        currentUser = response.user;
-        authToken = response.token;
-        localStorage.setItem('authToken', authToken);
-        initializeSocket(authToken);
-        showMainContent();
-        tempSocket.disconnect();
-      } else {
-        showAuthMessage("Регистрация успешна! Теперь войдите в систему.", "success");
-        setTimeout(() => {
-          switchAuthMode();
-        }, 2000);
-        tempSocket.disconnect();
-      }
-    });
-    
+    if (isLoginMode) {
+      const data = await graphqlRequest(
+        `mutation Login($username: String!, $password: String!) {
+          login(username: $username, password: $password) { user { id username createdAt } token }
+        }`,
+        { username, password }
+      );
+      currentUser = data.login.user;
+      authToken = data.login.token;
+      localStorage.setItem('authToken', authToken);
+      showMainContent();
+      await loadTasks();
+    } else {
+      await graphqlRequest(
+        `mutation Register($username: String!, $password: String!) { register(username: $username, password: $password) { id username } }`,
+        { username, password }
+      );
+      showAuthMessage("Регистрация успешна! Теперь войдите в систему.", "success");
+      setTimeout(() => {
+        switchAuthMode();
+      }, 2000);
+    }
   } catch (error) {
     console.error("Auth error:", error);
     showAuthMessage("Произошла ошибка при подключении к серверу");
@@ -158,11 +121,6 @@ const handleAuth = async (e) => {
 
 const logout = async () => {
   try {
-    if (socket) {
-      socket.emit('auth:logout', {}, () => {
-        socket.disconnect();
-      });
-    }
     currentUser = null;
     authToken = null;
     localStorage.removeItem('authToken');
@@ -217,47 +175,37 @@ const displayTasks = (tasks) => {
 };
 
 const loadTasks = async () => {
-  if (!socket) return;
-  
   try {
     const status = filterSelect.value;
-    socket.emit('tasks:filter', { status }, (response) => {
-      if (response.error) {
-        console.error("Error loading tasks:", response.error);
-        return;
-      }
-      displayTasks(response.tasks);
-    });
+    const data = await graphqlRequest(
+      `query Tasks($status: TaskStatus) { tasks(status: $status) { id title dueDate status files { filename originalName size mimeType } } }`,
+      { status: status === 'all' ? null : status }
+    );
+    displayTasks(data.tasks);
   } catch (error) {
     console.error("Error loading tasks:", error);
   }
 };
 
 const toggleStatus = async id => {
-  if (!socket) return;
-  
   try {
-    socket.emit('task:toggleStatus', { taskId: id }, (response) => {
-      if (response.error) {
-        console.error("Error toggling status:", response.error);
-        return;
-      }
-    });
+    await graphqlRequest(
+      `mutation Toggle($id: ID!) { toggleTask(id: $id) { id status } }`,
+      { id: String(id) }
+    );
+    await loadTasks();
   } catch (error) {
     console.error("Error toggling status:", error);
   }
 };
 
 const deleteTask = async id => {
-  if (!socket) return;
-  
   try {
-    socket.emit('task:delete', { taskId: id }, (response) => {
-      if (response.error) {
-        console.error("Error deleting task:", response.error);
-        return;
-      }
-    });
+    await graphqlRequest(
+      `mutation Delete($id: ID!) { deleteTask(id: $id) }`,
+      { id: String(id) }
+    );
+    await loadTasks();
   } catch (error) {
     console.error("Error deleting task:", error);
   }
@@ -265,7 +213,6 @@ const deleteTask = async id => {
 
 taskForm.addEventListener("submit", async e => {
   e.preventDefault();
-  if (!socket) return;
   
   try {
     const formData = new FormData(taskForm);
@@ -293,17 +240,12 @@ taskForm.addEventListener("submit", async e => {
       }
     }
     
-    socket.emit('task:create', { 
-      title, 
-      dueDate, 
-      files: uploadedFiles 
-    }, (response) => {
-      if (response.error) {
-        console.error("Error creating task:", response.error);
-        return;
-      }
-      taskForm.reset();
-    });
+    await graphqlRequest(
+      `mutation Create($title: String!, $dueDate: String!, $files: [FileInput!]) { createTask(title: $title, dueDate: $dueDate, files: $files) { id } }`,
+      { title, dueDate, files: uploadedFiles }
+    );
+    taskForm.reset();
+    await loadTasks();
   } catch (error) {
     console.error("Error creating task:", error);
   }
@@ -322,7 +264,7 @@ window.addEventListener("click", (e) => {
   }
 });
 
-const checkAuthToken = () => {
+const checkAuthToken = async () => {
   const token = localStorage.getItem('authToken');
   if (token) {
     authToken = token;
@@ -335,7 +277,8 @@ const checkAuthToken = () => {
       showAuthModal();
       return;
     }
-    initializeSocket(token);
+    showMainContent();
+    await loadTasks();
   } else {
     showAuthModal();
   }
